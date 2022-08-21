@@ -72,6 +72,7 @@ int mkdir (char *path, int mode);
 #include "vmsbackup.h"
 #include "match.h"
 #include "sysdep.h"
+#include "tapeio.h"
 
 #ifdef DEBUG
 #include "hexdump.h"
@@ -261,7 +262,7 @@ unsigned long nblocks;
 FILE	*lf;
 #endif
 
-int	fd;		/* tape file descriptor */
+tape_handle_t fd;		/* tape file descriptor */
 
 /* Command line stuff.  */
 
@@ -1226,7 +1227,7 @@ int rdhead(void)
 	    printf("rdhead\n");
 #endif
 	/* read the tape label - 4 records of 80 bytes */
-	while ((i = read(fd, label, LABEL_SIZE)) != 0) {
+	while ((i = getrec(fd, label, LABEL_SIZE)) != 0) {
 		if (i != LABEL_SIZE) {
 			fprintf(stderr, "Snark: bad label record\n");
 			exit(EXIT_FAILURE);
@@ -1265,7 +1266,7 @@ void rdtail(void)
 	int i;
 	char name[80];
 	/* read the tape label - 4 records of 80 bytes */
-	while ((i = read(fd, label, LABEL_SIZE)) != 0) {
+	while ((i = getrec(fd, label, LABEL_SIZE)) != 0) {
 		if (i != LABEL_SIZE) {
 			fprintf(stderr, "Snark: bad label record\n");
 			exit(EXIT_FAILURE);
@@ -1303,27 +1304,14 @@ void vmsbackup(void)
 #endif
 
 	/* open the tape file */
-	fd = open(tapefile, O_RDONLY);
-	if (fd < 0) {
+	fd = opentape(tapefile, 0, 0);
+	if (fd == NULL) {
 		perror(tapefile);
 		exit(EXIT_FAILURE);
 	}
-#if HAVE_MT_IOCTLS
-	/* rewind the tape */
-	op.mt_op = MTREW;
-	op.mt_count = 1;
-	i = ioctl(fd, MTIOCTOP, &op);
-	if (i < 0) {
-		if (errno == EINVAL || errno == ENOTTY) {
-			ondisk = 1;
-		} else {
-			perror(tapefile);
-			exit(EXIT_FAILURE);
-		}
-	}
-#else
-	ondisk = 1;
-#endif
+	ondisk = 0;
+
+	posnbot(fd);
 
 #ifdef DEBUG
     if (debugflag) {
@@ -1361,21 +1349,11 @@ void vmsbackup(void)
 				fprintf(stderr, "-s not supported for disk savesets\n");
 				exit(EXIT_FAILURE);
 			}
-#if HAVE_MT_IOCTLS
-			op.mt_op = MTFSF;
-			op.mt_count = 1;
-			i = ioctl(fd, MTIOCTOP, &op);
-			if (i < 0) {
-				perror(tapefile);
-				exit(EXIT_FAILURE);
-			}
-#else
-			abort ();
-#endif
+			skipfile(fd, 1);
 			i = 0;
 		}
 		else
-			i = read(fd, block, blocksize);
+			i = getrec(fd, block, blocksize);
 #ifdef DEBUG
     if (debugflag) {
 	printf("Read %d of %d bytes, now at 0x%lx\n", i, blocksize, lseek(fd, 0, SEEK_CUR));
@@ -1417,7 +1395,7 @@ void vmsbackup(void)
 	}
 
 	/* close the tape */
-	close(fd);
+	closetape(fd);
 
 #ifdef	NEWD
 	/* close debug file */
