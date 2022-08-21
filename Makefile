@@ -34,13 +34,14 @@ MODE=4755
 BINDIR=/usr/bin
 MANSEC=1
 MANDIR=/usr/share/man/man$(MANSEC)
-DISTFILES=README vmsbackup.1 Makefile vmsbackup.c match.c NEWS  build.com dclmain.c getoptmain.c vmsbackup.cld vmsbackup.h  sysdep.h
+DISTFILES=README vmsbackup.1 Makefile vmsbackup.c match.c NEWS  build.com dclmain.c getoptmain.c vmsbackup.cld vmsbackup.h  sysdep.h tapeio.c
 
-vmsbackup: vmsbackup.o match.o getoptmain.o
+vmsbackup: vmsbackup.o match.o getoptmain.o tapeio.o
 
 vmsbackup.o : vmsbackup.c
 match.o : match.c
 getoptmain.o : getoptmain.c
+tapeio.o : tapeio.c
 
 install:
 	install -m $(MODE) -o $(OWNER) -s vmsbackup $(BINDIR)
